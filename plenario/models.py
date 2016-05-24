@@ -200,47 +200,68 @@ class MetaTable(Base):
 
         return to_coalesce
 
-    # Return a list of [
-    # {'dataset_name': 'Foo',
-    # 'items': [{'datetime': dt, 'count': int}, ...] } ]
     @classmethod
     def timeseries_all(cls, table_names, agg_unit, start, end, geom=None):
-        # For each table in table_names, generate a query to be unioned
-        selects = []
-        for name in table_names:
-            table = cls.get_by_dataset_name(name)
-            ts_select = table.timeseries(agg_unit, start, end, geom)
-            selects.append(ts_select)
+        """
+        For each candidate dataset, query the matching timetables and push datasets with nonempty
+        timeseries onto a timeseries list to display.
 
-        # Union the time series selects to get a panel
-        panel_query = sa.union(*selects)\
-                        .order_by('dataset_name')\
-                        .order_by('time_bucket')
-        panel_vals = session.execute(panel_query)
+        :param table_names: list of tables to generate timetables for
+        :param agg_unit: a unit of time to divide up the data by (day, week, month, year)
+        :param start: starting date to limit query
+        :param end: ending date to limit query
+        :param geom: geometric constraints of the query
 
-        panel = []
-        for dataset_name, ts in groupby(panel_vals, lambda row: row.dataset_name):
+        :returns: timeseries list to display
+        """
 
-            # ts gets closed after it's been iterated over once,
-            # so we need to store the rows somewhere to iterate over them twice.
-            rows = [row for row in ts]
-            # If no records were found, don't include this dataset
-            if all([row.count == 0 for row in rows]):
-                continue
+        from multiprocessing import Process
+        from plenario.settings import DATABASE_CONN
+        from plenario.database import create_engine
+        import sys
 
-            ts_dict = {'dataset_name': dataset_name,
-                       'items': []}
+        eng = create_engine(DATABASE_CONN)
 
-            for row in rows:
-                ts_dict['items'].append({
-                    'datetime': row.time_bucket.date(),  # UTC time
-                    'count':    row.count
-                })
-                # Aggregate top-level count across all time slices.
-                ts_dict['count'] = sum([i['count'] for i in ts_dict['items']])
-            panel.append(ts_dict)
+        result_proxy_list = []
 
-        return panel
+        def get_result_proxy(procnum, storage, table_name):
+            eng.dispose()
+            table = cls.get_by_dataset_name(table_names)
+
+            with eng.connect() as connection:
+                result = connection.execute(table.timeseries(agg_unit, start, end, geom))
+                storage[procnum] = result
+
+        for i, name in enumerate(table_names):
+            try:
+                proc = Process(target=get_result_proxy, args=[i, result_proxy_list, name])
+                proc.start()
+            except Exception as ex:
+                print ex
+                sys.exit()
+
+        timeseries_list = []
+
+        for rp in result_proxy_list:
+
+            # ignore empty timetables
+            if rp.rowcount > 0:
+
+                results = rp.fetchall()
+
+                timeseries = {
+                    'dataset_name': name,  # TODO: fix.
+                    'items': [],
+                    'count': 0
+                }
+
+                for r in results:
+                    timeseries['items'].append({'datetime': r.time_bucket.date(), 'count': r.count})
+                    timeseries['count'] += r.count
+
+                timeseries_list.append(timeseries)
+
+        return timeseries_list
 
     # Information about all point datasets
     @classmethod
@@ -593,7 +614,7 @@ class User(Base):
 
     def is_authenticated(self):
         return True
-    
+
     def is_active(self):
         return True
 
