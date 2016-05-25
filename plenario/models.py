@@ -246,14 +246,14 @@ class MetaTable(Base):
             if len(result) > 0:
 
                 timeseries = {
-                    'dataset_name': result[0][0],
+                    'dataset_name': unicode(result[0][0]),
                     'items': [],
                     'count': 0
                 }
 
                 # row: (table_name, datetime, count)
                 for row in result:
-                    timeseries['items'].append({'datetime': row[1], 'count': row[2]})
+                    timeseries['items'].append({'datetime': datetime.date(row[1]), 'count': row[2]})
                     timeseries['count'] += row[2]
                 timeseries_list.append(timeseries)
 
