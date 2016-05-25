@@ -14,8 +14,9 @@ import json
 from hashlib import md5
 from operator import itemgetter
 
-from plenario.database import session, Base
+from plenario.database import app_engine, session, Base
 from plenario.utils.helpers import slugify
+from multiprocessing import Manager, Process
 
 from collections import namedtuple
 
@@ -215,49 +216,46 @@ class MetaTable(Base):
         :returns: timeseries list to display
         """
 
-        from multiprocessing import Process
-        from plenario.settings import DATABASE_CONN
-        from plenario.database import create_engine
-        import sys
+        # to allow multiple processes to share a list value
+        results_list = Manager().list()
 
-        eng = create_engine(DATABASE_CONN)
+        def fetch_raw_timeseries(storage, t_name):
+            # clear any pre-existing connections copied when the process was made
+            app_engine.dispose()
+            # instantiate a session with the imported ScopedSession session factory
+            _session = session()
+            # fetch MetaTable object  associated with t_name
+            table = _session.query(cls).filter(cls.dataset_name == t_name).first()
+            # extract from ResultProxy returned by executing MetaTable.timeseries
+            rp = _session.execute(table.timeseries(agg_unit, start, end, geom))
+            # load it to shared storage
+            storage.append(rp.fetchall())
+            rp.close()
 
-        result_proxy_list = []
+        # create and run a new process for every table to query
+        for name in table_names:
+            p = Process(target=fetch_raw_timeseries, args=[results_list, name])
+            p.start()
+            p.join()
 
-        def get_result_proxy(procnum, storage, table_name):
-            eng.dispose()
-            table = cls.get_by_dataset_name(table_names)
-
-            with eng.connect() as connection:
-                result = connection.execute(table.timeseries(agg_unit, start, end, geom))
-                storage[procnum] = result
-
-        for i, name in enumerate(table_names):
-            try:
-                proc = Process(target=get_result_proxy, args=[i, result_proxy_list, name])
-                proc.start()
-            except Exception as ex:
-                print ex
-                sys.exit()
-
+        # hold timeseries dictionaries that will eventually be converted to JSON
         timeseries_list = []
 
-        for rp in result_proxy_list:
+        for result in results_list:
 
             # ignore empty timetables
-            if rp.rowcount > 0:
-
-                results = rp.fetchall()
+            if len(result) > 0:
 
                 timeseries = {
-                    'dataset_name': name,  # TODO: fix.
+                    'dataset_name': result[0][0],
                     'items': [],
                     'count': 0
                 }
 
-                for r in results:
-                    timeseries['items'].append({'datetime': r.time_bucket.date(), 'count': r.count})
-                    timeseries['count'] += r.count
+                # row: (table_name, datetime, count)
+                for row in result:
+                    timeseries['items'].append({'datetime': row[1], 'count': row[2]})
+                    timeseries['count'] += row[2]
 
                 timeseries_list.append(timeseries)
 
