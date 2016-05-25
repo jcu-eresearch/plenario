@@ -3,20 +3,24 @@ from datetime import datetime
 
 from sqlalchemy import Column, String, Boolean, Date, DateTime, \
     Text, func, Table, select, Integer
+from sqlalchemy import create_engine
 from sqlalchemy.dialects.postgresql import ARRAY
 from geoalchemy2 import Geometry
 from sqlalchemy.orm import synonym
 import sqlalchemy as sa
 from plenario.utils.helpers import get_size_in_degrees
 from flask_bcrypt import Bcrypt
-from itertools import groupby
 import json
 from hashlib import md5
 from operator import itemgetter
 
 from plenario.database import app_engine, session, Base
+from plenario.settings import DATABASE_CONN
 from plenario.utils.helpers import slugify
+
 from multiprocessing import Manager, Process
+from multiprocessing.util import register_after_fork
+import threading
 
 from collections import namedtuple
 
@@ -216,14 +220,23 @@ class MetaTable(Base):
         :returns: timeseries list to display
         """
 
-        # Manager instance allows multiple processes to share a list value
-        results_list = Manager().list()
+        # TODO: SSLError: bad row
+        # TODO: ValueError: JSON object can't be decoded.
 
-        def fetch_raw_timeseries(storage, t_name):
-            # clear any pre-existing connections copied when the process was made
-            app_engine.dispose()
-            # instantiate a session with the imported ScopedSession session factory
-            _session = session()
+        # Manager instance allows multiple processes to share a list value
+        # results_list = Manager().list()
+
+        threads = []
+        storage = []
+
+        _session = session()
+
+        def fetch_raw_timeseries(t_name):
+            ## clear any pre-existing connections copied when the process was made
+            # engine = create_engine(DATABASE_CONN)
+            # register_after_fork(engine, engine.dispose)
+            ## instantiate a session with the imported ScopedSession session factory
+            # _session = session()
             # fetch MetaTable object associated with t_name
             table = _session.query(cls).filter(cls.dataset_name == t_name).first()
             # extract from ResultProxy returned by executing MetaTable.timeseries
@@ -233,15 +246,30 @@ class MetaTable(Base):
             rp.close()
 
         # create and run a new process for every table to query
+        processes = []
         for name in table_names:
-            p = Process(target=fetch_raw_timeseries, args=[results_list, name])
-            p.start()
-            p.join()
+            # proc = Process(target=fetch_raw_timeseries, args=[results_list, name])
+            # proc.start()
+            # processes.append(proc)
+
+            thread = threading.Thread(target=fetch_raw_timeseries(name))
+            threads.append(thread)
+
+        # start all threads
+        for thread in threads:
+            thread.start()
+
+        for thread in threads:
+            thread.join()
+
+        # wait for all processes to finish
+        # for proc in processes:
+        #    proc.join()
 
         # hold timeseries dictionaries that will eventually be converted to JSON
         timeseries_list = []
 
-        for result in results_list:
+        for result in storage:
             # ignore empty timetables
             if len(result) > 0:
 
