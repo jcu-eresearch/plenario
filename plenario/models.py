@@ -204,8 +204,8 @@ class MetaTable(Base):
     @classmethod
     def timeseries_all(cls, table_names, agg_unit, start, end, geom=None):
         """
-        For each candidate dataset, query the matching timetables and push datasets with nonempty
-        timeseries onto a timeseries list to display.
+        For each candidate dataset, query the matching timeseries and push datasets with nonempty
+        timeseries into a list to convert to JSON and display.
 
         :param table_names: list of tables to generate timetables for
         :param agg_unit: a unit of time to divide up the data by (day, week, month, year)
@@ -216,7 +216,7 @@ class MetaTable(Base):
         :returns: timeseries list to display
         """
 
-        # to allow multiple processes to share a list value
+        # Manager instance allows multiple processes to share a list value
         results_list = Manager().list()
 
         def fetch_raw_timeseries(storage, t_name):
@@ -224,7 +224,7 @@ class MetaTable(Base):
             app_engine.dispose()
             # instantiate a session with the imported ScopedSession session factory
             _session = session()
-            # fetch MetaTable object  associated with t_name
+            # fetch MetaTable object associated with t_name
             table = _session.query(cls).filter(cls.dataset_name == t_name).first()
             # extract from ResultProxy returned by executing MetaTable.timeseries
             rp = _session.execute(table.timeseries(agg_unit, start, end, geom))
@@ -242,7 +242,6 @@ class MetaTable(Base):
         timeseries_list = []
 
         for result in results_list:
-
             # ignore empty timetables
             if len(result) > 0:
 
@@ -256,7 +255,6 @@ class MetaTable(Base):
                 for row in result:
                     timeseries['items'].append({'datetime': row[1], 'count': row[2]})
                     timeseries['count'] += row[2]
-
                 timeseries_list.append(timeseries)
 
         return timeseries_list
