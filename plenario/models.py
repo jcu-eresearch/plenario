@@ -220,72 +220,48 @@ class MetaTable(Base):
         :returns: timeseries list to display
         """
 
-        # TODO: SSLError: bad row
-        # TODO: ValueError: JSON object can't be decoded.
-
-        # Manager instance allows multiple processes to share a list value
-        # results_list = Manager().list()
-
         threads = []
-        storage = []
-
+        timeseries_dicts = []
         _session = session()
 
-        def fetch_raw_timeseries(t_name):
-            ## clear any pre-existing connections copied when the process was made
-            # engine = create_engine(DATABASE_CONN)
-            # register_after_fork(engine, engine.dispose)
-            ## instantiate a session with the imported ScopedSession session factory
-            # _session = session()
+        def fetch_timeseries(t_name):
             # fetch MetaTable object associated with t_name
             table = _session.query(cls).filter(cls.dataset_name == t_name).first()
-            # extract from ResultProxy returned by executing MetaTable.timeseries
+            # get ResultProxy returned by executing MetaTable.timeseries query
             rp = _session.execute(table.timeseries(agg_unit, start, end, geom))
-            # load it to shared storage
-            storage.append(rp.fetchall())
+
+            # ignore empty ResultProxies
+            if rp.rowcount > 0:
+
+                timeseries = {
+                    'dataset_name': t_name,
+                    'items': [],
+                    'count': 0
+                }
+
+                for row in rp.fetchall():
+                    timeseries['items'].append({'datetime': row.time_bucket.date(), 'count': row.count})
+                    timeseries['count'] += row.count
+
+                # load to outer storage
+                timeseries_dicts.append(timeseries)
+
             rp.close()
 
-        # create and run a new process for every table to query
-        processes = []
+        # create a new thread for every table to query
         for name in table_names:
-            # proc = Process(target=fetch_raw_timeseries, args=[results_list, name])
-            # proc.start()
-            # processes.append(proc)
-
-            thread = threading.Thread(target=fetch_raw_timeseries(name))
+            thread = threading.Thread(target=fetch_timeseries, args=(name, ))
             threads.append(thread)
 
         # start all threads
         for thread in threads:
             thread.start()
 
+        # wait for all threads to finish
         for thread in threads:
             thread.join()
 
-        # wait for all processes to finish
-        # for proc in processes:
-        #    proc.join()
-
-        # hold timeseries dictionaries that will eventually be converted to JSON
-        timeseries_list = []
-
-        for result in storage:
-            # ignore empty timetables
-            if len(result) > 0:
-
-                timeseries = {
-                    'dataset_name': unicode(result[0][0]),
-                    'items': [],
-                    'count': 0
-                }
-
-                # row: (table_name, datetime, count)
-                for row in result:
-                    timeseries['items'].append({'datetime': datetime.date(row[1]), 'count': row[2]})
-                    timeseries['count'] += row[2]
-                timeseries_list.append(timeseries)
-
-        return timeseries_list
+        return timeseries_dicts
 
     # Information about all point datasets
     @classmethod
