@@ -161,3 +161,12 @@ def update_weather():
     # delete all metars before that datetime.
     w.clear_metars()
     return 'Added weather for %s %s' % (month, year)
+
+
+@celery_app.task
+def weather_backfill(year, month):
+    year_num = int(year)
+    month_num = int(month)
+    w = WeatherETL()
+    w.initialize_month(year_num, month_num)
+    return 'Added weather for %s %s' % (month, year)

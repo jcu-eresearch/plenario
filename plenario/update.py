@@ -17,6 +17,11 @@ def create_worker():
     app.config.from_object('plenario.settings')
     app.url_map.strict_slashes = False
 
+    @app.route('/update/weather/<year>/<month>', methods=['POST'])
+    def weather_backfill(year, month):
+        tasks.weather_backfill.delay(year, month)
+        return "Sent off weather backfill task"
+
     @app.route('/update/weather', methods=['POST'])
     def weather():
         tasks.update_weather.delay()
