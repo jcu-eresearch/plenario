@@ -6,11 +6,25 @@ PLENARIO_SENTRY_URL = get('PLENARIO_SENTRY_URL', None)
 CELERY_SENTRY_URL = get('CELERY_SENTRY_URL', None)
 DATA_DIR = '/tmp'
 
+<<<<<<< HEAD
 DB_USER = get('DB_USER', 'postgres')
 DB_PASSWORD = get('DB_PASSWORD', 'password')
 DB_HOST = get('DB_HOST', 'localhost')
 DB_PORT = get('DB_PORT', '5432')
 DB_NAME = get('DB_NAME', 'plenario_test')
+=======
+DB_USER = get('DB_USER', '')
+DB_PASSWORD = get('DB_PASSWORD', '')
+DB_HOST = get('DB_HOST', '')
+DB_PORT = get('DB_PORT', '')
+DB_NAME = get('DB_NAME', '')
+
+RS_USER = get('RS_USER', '')
+RS_PASSWORD = get('RS_PASSWORD', '')
+RS_HOST = get('RS_HOST', '')
+RS_PORT = get('RS_PORT', '')
+RS_NAME = get('RS_NAME', '')
+>>>>>>> 4a99417... fix credential mistake
 
 DATABASE_CONN = 'postgresql://{}:{}@{}:{}/{}'.\
     format(DB_USER, DB_PASSWORD, DB_HOST, DB_PORT, DB_NAME)
