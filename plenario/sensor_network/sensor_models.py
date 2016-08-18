@@ -6,9 +6,9 @@ from sqlalchemy.orm import relationship
 from plenario.database import session, Base, app_engine
 
 sensor_to_node = Table('sensor__sensor_to_node', Base.metadata,
-                      Column('sensor', String, ForeignKey('sensor__sensors.name')),
-                      Column('node', String, ForeignKey('sensor__node_metadata.id'))
-                      )
+                       Column('sensor', String, ForeignKey('sensor__sensors.name')),
+                       Column('node', String, ForeignKey('sensor__node_metadata.id'))
+                       )
 
 
 class NetworkMeta(Base):
@@ -49,9 +49,9 @@ class FeatureOfInterest(Base):
     def index(network_name=None):
         features = []
         for node in session.query(NodeMeta).all():
-            for sensor in node.sensors:
-                for prop in sensor.observedProperties:
-                    if node.sensorNetwork == network_name or network_name is None:
+            if node.sensorNetwork == network_name or network_name is None:
+                for sensor in node.sensors:
+                    for prop in sensor.observedProperties:
                         features.append(prop.split('.')[0])
         return list(set(features))
 
