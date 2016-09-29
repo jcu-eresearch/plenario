@@ -6,6 +6,7 @@ echo "-------------------- Apt-get update and install dependencies -------------
 
 sudo apt-get update -y
 sudo apt-get install -y redis-server curl git python-pip gdal-bin libpq-dev libgeos-dev python-pip postgresql postgresql-client-common postgresql-client postgis
+# If not on ubuntu 16.04 LTS you might have to change postgresql to postgresql-9.4-postgis-2.2 to get working postgis extension... YMMV
 
 echo "-------------------- Clone plenario.git -------------------- "
 
@@ -14,7 +15,8 @@ cd plenario
 
 echo "-------------------- Make plenario virtualenv and pip install requirements.txt -------------------- "
 
-virtualenv plenario
+virtualenv .
+source ./bin/activate  # need to activate this virtualenv to run python commands etc
 pip install -r requirements.txt
 
 echo "-------------------- creating postgres user, database to match settings.py -------------------- "

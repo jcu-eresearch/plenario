@@ -18,5 +18,5 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     end
 
     #Run the shell script inline provisioner
-    config.vm.provision "shell", path: "vagrant-setup.sh"
+    config.vm.provision "shell", path: "vagrant-setup.sh", privileged: "false"
 end
