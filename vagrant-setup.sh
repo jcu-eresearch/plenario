@@ -5,10 +5,10 @@ set -e
 echo "-------------------- Apt-get update and install dependencies -------------------- "
 
 sudo apt-get update -y
-sudo apt-get install -y redis-server curl git python-pip gdal-bin libpq-dev libgeos-dev python-pip postgresql postgresql-client-common postgresql-client postgis
+sudo apt-get install -y redis-server curl git python-pip virtualenv gdal-bin libpq-dev libgeos-dev python-pip postgresql postgresql-client-common postgresql-client postgis
 # If not on ubuntu 16.04 LTS you might have to change postgresql to postgresql-9.4-postgis-2.2 to get working postgis extension... YMMV
 
-echo "-------------------- Clone plenario.git -------------------- "
+echo "-------------------- Clone plenario -------------------- "
 
 git clone https://github.com/UrbanCCD-UChicago/plenario
 cd plenario
